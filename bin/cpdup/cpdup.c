@@ -1154,14 +1154,34 @@ relink:
 		int n;
 
 		/*
-		 * Matt: What about holes?
+		 * Sparse files have fewer blocks allocated than required.
+		 * Only try to write out sparse blocks if this is the case.
+		 * Note that st_blksize is the 'optimal block size';
+		 * st_blocks is always measured in units of 512 bytes.
 		 */
+		DstHost.fdout_off = -1;
+		if (SparseOpt) {
+		    struct stat spst;
+
+		    if (hc_stat(&SrcHost, spath, &spst) == 0) {
+			if (spst.st_size > (spst.st_blocks * 512)) {
+			    if (VerboseOpt >= 3)
+				logstd("%-32s is-sparse\n", spath);
+			    DstHost.fdout_off = 0;
+			} else {
+			    if (VerboseOpt >= 3)
+				logstd("%-32s not-sparse\n", spath);
+			}
+		    }
+		}
+
 		op = "read";
 		while ((n = hc_read(&SrcHost, fd1, iobuf1, GETIOSIZE)) > 0) {
 		    op = "write";
 		    if (hc_write(&DstHost, fd2, iobuf1, n) != n)
 			break;
-		    DstHost.fdout_off += n;
+		    if (DstHost.fdout_off != -1)
+			DstHost.fdout_off += n;
 		    op = "read";
 		}
 		hc_close(&DstHost, fd2);

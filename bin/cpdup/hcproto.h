@@ -67,6 +67,7 @@
 #define LC_BLKSIZE	(0x0027|LCF_INT32)
 #define LC_VERSION	(0x0028|LCF_INT32)
 #define LC_COUNT	(0x0029|LCF_INT32)
+#define LC_OFFSET	(0x0030|LCF_INT64)
 
 #define XO_NATIVEMASK	3		/* passed through directly */
 #define XO_CREAT	0x00010000
