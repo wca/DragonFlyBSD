@@ -500,11 +500,28 @@ OwnerMatch(struct stat *st1, struct stat *st2)
 static int
 FlagsMatch(struct stat *st1, struct stat *st2)
 {
-    if (DstRootPrivs)
-	return (st1->st_flags == st2->st_flags);
-    else
-	/* Only consider the user-settable flags. */
-	return (((st1->st_flags ^ st2->st_flags) & UF_SETTABLE) == 0);
+    fflags_t ignored;
+
+/* 
+ * Ignore UF_ARCHIVE.  It gets set automatically by the filesystem, for
+ * filesystems that support it.  For filesystems that don't support it, we must
+ * ignore it lest the following happen:
+ * 1) If UF_ARCHIVE is set on the source but the destination filesystem doesn't
+ *    support it, then multiple invocations of cpdup would all try to copy the
+ *    file because the flags don't match.
+ * 2) If UF_ARCHIVE is cleared on the source and the destination filesystem
+ *    does support it, then multiple invocations of cpdup would all try to copy
+ *    the file because the destination filesystem would automatically set
+ *    UF_ARCHIVE and hence the flags wouldn't match.
+ *
+ * When unpriveleged, ignore SF_ARCHIVED because we can't set those flags
+ */
+#ifdef UF_ARCHIVE
+    ignored = (DstRootPrivs ? 0 : SF_ARCHIVED) | UF_ARCHIVE;
+#else
+    ignored = DstRootPrivs ? 0 : SF_ARCHIVED;
+#endif
+    return (((st1->st_flags ^ st2->st_flags) & ~ignored) == 0);
 }
 #endif
 
