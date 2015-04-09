@@ -130,6 +130,7 @@ static int YesNo(const char *path);
 static int xrename(const char *src, const char *dst, u_long flags);
 static int xlink(const char *src, const char *dst, u_long flags);
 static int xremove(struct HostConf *host, const char *path);
+static int xrmdir(struct HostConf *host, const char *path);
 static int DoCopy(copy_info_t info, struct stat *stat1, int depth);
 static int ScanDir(List *list, struct HostConf *host, const char *path,
 	int64_t *CountReadBytes, int n);
@@ -1481,7 +1482,7 @@ RemoveRecur(const char *dpath, dev_t devNo, struct stat *dstat)
 		}
 		if (AskConfirmation && NoRemoveOpt == 0) {
 		    if (YesNo(dpath)) {
-			if (hc_rmdir(&DstHost, dpath) < 0) {
+			if (xrmdir(&DstHost, dpath) < 0) {
 			    logerr("%-32s rmdir failed: %s\n",
 				dpath, strerror(errno)
 			    );
@@ -1492,7 +1493,7 @@ RemoveRecur(const char *dpath, dev_t devNo, struct stat *dstat)
 		    if (NoRemoveOpt) {
 			if (VerboseOpt)
 			    logstd("%-32s not-removed\n", dpath);
-		    } else if (hc_rmdir(&DstHost, dpath) == 0) {
+		    } else if (xrmdir(&DstHost, dpath) == 0) {
 			if (VerboseOpt)
 			    logstd("%-32s rmdir-ok\n", dpath);
 			CountRemovedItems++;
@@ -1706,3 +1707,17 @@ xremove(struct HostConf *host, const char *path)
     return(res);
 }
 
+static int
+xrmdir(struct HostConf *host, const char *path)
+{
+    int res;
+
+    res = hc_rmdir(host, path);
+#ifdef _ST_FLAGS_PRESENT_
+    if (res == -EPERM) {
+	hc_chflags(host, path, 0);
+	res = hc_rmdir(host, path);
+    }
+#endif
+    return(res);
+}
