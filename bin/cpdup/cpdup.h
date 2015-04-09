@@ -81,6 +81,7 @@ extern int CompressOpt;
 extern int ReadOnlyOpt;
 extern int DstRootPrivs;
 extern int ValidateOpt;
+extern int SparseOpt;
 
 extern int ssh_argc;
 extern const char *ssh_argv[];

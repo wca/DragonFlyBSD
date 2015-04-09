@@ -180,6 +180,7 @@ fatal(const char *ctl, ...)
 	     "    -s0         disable safeties - allow files to overwrite directories\n"
 	     "    -q          quiet operation\n"
 	     "    -o          do not remove any files, just overwrite/add\n"
+	     "    -O          avoid writing zeroed bytes\n"
 	);
 	puts(
 	     "    -k          maintain/generate FSMID checkfile on target,\n"

@@ -34,6 +34,7 @@ struct HostConf {
     int		fdin;		/* pipe */
     int		fdout;		/* pipe */
     int		error;		/* permanent failure code */
+    off_t	fdout_off;	/* current output offset */
     pid_t	pid;
     int		version;	/* cpdup protocol version */
     struct HCHostDesc *hostdescs;

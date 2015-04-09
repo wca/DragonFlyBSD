@@ -150,6 +150,7 @@ int CompressOpt;
 int SlaveOpt;
 int ReadOnlyOpt;
 int ValidateOpt;
+int SparseOpt;
 int ssh_argc;
 const char *ssh_argv[16];
 int DstRootPrivs;
@@ -191,7 +192,7 @@ main(int ac, char **av)
 
     gettimeofday(&start, NULL);
     opterr = 0;
-    while ((opt = getopt(ac, av, ":CdnF:fH:Ii:j:K:klM:mopqRSs:uVvX:x")) != -1) {
+    while ((opt = getopt(ac, av, ":CdnF:fH:Ii:j:K:klM:moOpqRSs:uVvX:x")) != -1) {
 	switch (opt) {
 	/* TODO: sort the branches */
 	case 'C':
@@ -218,6 +219,9 @@ main(int ac, char **av)
 	    break;
 	case 'o':
 	    NoRemoveOpt = 1;
+	    break;
+	case 'O':
+	    SparseOpt = 1;
 	    break;
 	case 'x':
 	    UseCpFile = ".cpignore";
@@ -1157,6 +1161,7 @@ relink:
 		    op = "write";
 		    if (hc_write(&DstHost, fd2, iobuf1, n) != n)
 			break;
+		    DstHost.fdout_off += n;
 		    op = "read";
 		}
 		hc_close(&DstHost, fd2);
@@ -1705,4 +1710,3 @@ xremove(struct HostConf *host, const char *path)
 #endif
     return(res);
 }
-

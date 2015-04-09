@@ -766,6 +766,18 @@ rc_open(hctransaction_t trans, struct HCHead *head)
 /*
  * CLOSE
  */
+static int
+do_close(int fd, off_t off)
+{
+    if (SparseOpt && off > 0) {
+	if (ftruncate(fd, off) < 0) {
+		close(fd);
+		return (-1);
+	}
+    }
+    return (close(fd));
+}
+
 int
 hc_close(struct HostConf *hc, int fd)
 {
@@ -776,7 +788,7 @@ hc_close(struct HostConf *hc, int fd)
     if (NotForRealOpt && fd == 0x7FFFFFFF)
 	return(0);
     if (hc == NULL || hc->host == NULL)
-	return(close(fd));
+	return(do_close(fd, hc ? hc->fdout_off : 0));
 
     if (fd == 1 && hc->version >= 4) {	/* using HC_READFILE */
 	head = (void *)hc->trans.rbuf;
@@ -794,6 +806,8 @@ hc_close(struct HostConf *hc, int fd)
 	hcc_set_descriptor(hc, fd, NULL, HC_DESC_FD);
 
 	trans = hcc_start_command(hc, HC_CLOSE);
+	if (hc->fdout_off > 0)
+		hcc_leaf_int64(trans, LC_BYTES, hc->fdout_off);
 	hcc_leaf_int32(trans, LC_DESCRIPTOR, fd);
 	if ((head = hcc_finish_command(trans)) == NULL)
 	    return(-1);
@@ -811,11 +825,14 @@ rc_close(hctransaction_t trans, struct HCHead *head)
     struct HCLeaf *item;
     int *fdp = NULL;
     int fd;
+    off_t off = 0;
     int desc = -1;
 
     FOR_EACH_ITEM(item, trans, head) {
 	if (item->leafid == LC_DESCRIPTOR)
 	    desc = HCC_INT32(item);
+	if (item->leafid == LC_BYTES)
+	    off = HCC_INT64(item);
     }
     if (desc < 0)
 	return(-2);
@@ -824,7 +841,7 @@ rc_close(hctransaction_t trans, struct HCHead *head)
     fd = *fdp;
     free(fdp);
     hcc_set_descriptor(trans->hc, desc, NULL, HC_DESC_FD);
-    return(close(fd));
+    return (do_close(fd, off));
 }
 
 static int
@@ -975,6 +992,39 @@ rc_readfile(hctransaction_t trans, struct HCHead *head)
     return (close(fd));
 }
 
+static ssize_t
+do_write(int fd, const uint8_t *buf, int32_t bytes)
+{
+    int n = -1;
+    int32_t resid, count;
+
+    resid = bytes;
+    while (resid > 0) {
+	if (SparseOpt) {
+		/* Check for zeroes, if applicable. */
+		for (count = 0; *buf == 0 && resid > count; count++, buf++);
+		if (count > 0) {
+			if ((n = lseek(fd, count, SEEK_CUR)) < 0)
+				break;
+			resid -= count;
+		}
+		/* Now check for non-zeroes. */
+		for (count = 0; *buf != 0 && resid > count; count++);
+	} else
+		count = resid;
+	while (count > 0) {
+		if ((n = write(fd, buf, count)) < 0)
+			break;
+		count -= n;
+		resid -= n;
+		buf += n;
+	}
+    }
+    if (n < 0)
+	return (-1);
+    return (bytes);
+}
+
 /*
  * WRITE
  */
@@ -991,7 +1041,7 @@ hc_write(struct HostConf *hc, int fd, const void *buf, size_t bytes)
 	return(bytes);
 
     if (hc == NULL || hc->host == NULL)
-	return(write(fd, buf, bytes));
+	return (do_write(fd, buf, bytes));
 
     fdp = hcc_get_descriptor(hc, fd, HC_DESC_FD);
     if (fdp) {
@@ -1031,8 +1081,9 @@ rc_write(hctransaction_t trans, struct HCHead *head)
 {
     struct HCLeaf *item;
     int *fdp = NULL;
-    void *buf = NULL;
+    uint8_t *buf = NULL;
     int n = -1;
+    int32_t bytes = -1;
 
     FOR_EACH_ITEM(item, trans, head) {
 	switch(item->leafid) {
@@ -1041,7 +1092,7 @@ rc_write(hctransaction_t trans, struct HCHead *head)
 	    break;
 	case LC_DATA:
 	    buf = HCC_BINARYDATA(item);
-	    n = item->bytes - sizeof(*item);
+	    bytes = item->bytes - sizeof(*item);
 	    break;
 	}
     }
@@ -1051,9 +1102,9 @@ rc_write(hctransaction_t trans, struct HCHead *head)
     }
     if (fdp == NULL)
 	return(-2);
-    if (n < 0 || n > 32768)
+    if (bytes < 0 || bytes > 32768)
 	return(-2);
-    n = write(*fdp, buf, n);
+    n = do_write(*fdp, buf, bytes);
     if (n < 0)
 	return (-1);
     hcc_leaf_int32(trans, LC_BYTES, n);
