@@ -995,7 +995,7 @@ rc_readfile(hctransaction_t trans, struct HCHead *head)
 static ssize_t
 do_write(int fd, const uint8_t *buf, int32_t bytes, int64_t off)
 {
-    int n = -1;
+    off_t n = -1;
     int32_t resid, count;
 
     resid = bytes;
