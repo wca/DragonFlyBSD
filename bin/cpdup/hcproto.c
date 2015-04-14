@@ -995,11 +995,11 @@ rc_readfile(hctransaction_t trans, struct HCHead *head)
 static ssize_t
 do_write(int fd, const uint8_t *buf, int32_t bytes, int64_t off)
 {
-    off_t n = -1;
+    off_t n = 1;
     int32_t resid, count;
 
     resid = bytes;
-    while (resid > 0) {
+    while (resid > 0 && n > 0) {
 	if (off >= 0) {
 		/* Check for zeroes, if applicable. */
 		for (count = 0; *buf == 0 && resid > count; count++, buf++);
@@ -1012,17 +1012,12 @@ do_write(int fd, const uint8_t *buf, int32_t bytes, int64_t off)
 		for (count = 0; *buf != 0 && resid > count; count++);
 	} else
 		count = resid;
-	while (count > 0) {
-		if ((n = write(fd, buf, count)) < 0)
-			break;
-		count -= n;
-		resid -= n;
-		buf += n;
-	}
+	for (; count > 0 && n > 0; count -= n, resid -= n, buf += n)
+		n = write(fd, buf, count);
     }
     if (n < 0)
 	return (-1);
-    return (bytes);
+    return (bytes - resid);
 }
 
 /*
